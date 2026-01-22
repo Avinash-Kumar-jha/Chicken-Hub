@@ -413,7 +413,6 @@ router.post('/clear-after-order', authMiddleware, async (req, res) => {
     user.cart.lastUpdated = new Date();
 
     await user.save();
-
     res.status(200).json({
       success: true,
       message: 'Cart cleared after order'

@@ -20,19 +20,25 @@ app.use(helmet());
 // -------------------- CORS --------------------
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-
+    // In production, allow all origins or specify your frontend URL
     const allowedOrigins = process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',')
       : [
-          'https://unique-florentine-f4cf47.netlify.app',
+          'http://localhost:3000',
+          'http://localhost:3001',
           'http://localhost:5173',
           'http://localhost:5174',
+          'https://chicken-hub.onrender.com',
+          'https://your-frontend-domain.com' // Add your frontend URL here
         ];
+
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
 
     if (
       allowedOrigins.includes(origin) ||
-      process.env.NODE_ENV === 'development'
+      process.env.NODE_ENV === 'development' ||
+      origin.includes('render.com') // Allow render subdomains
     ) {
       callback(null, true);
     } else {
@@ -48,6 +54,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
 // -------------------- BODY PARSERS --------------------
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -56,12 +65,47 @@ app.use(cookieParser());
 // -------------------- LOGGING --------------------
 app.use(morgan('dev'));
 
+// ==================== HEALTH CHECK ====================
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Server is running',
+    time: new Date().toISOString(),
+    service: 'ChickenHub API 🐔',
+    version: '1.0.0'
+  });
+});
+
+// ==================== CATEGORIES ROUTE (FIX: Add this missing route) ====================
+app.get('/api/categories', async (req, res) => {
+  try {
+    // This should come from your Category model
+    const categories = [
+      { _id: '1', name: 'Fresh Chicken', slug: 'fresh-chicken', image: '' },
+      { _id: '2', name: 'Marinated Chicken', slug: 'marinated-chicken', image: '' },
+      { _id: '3', name: 'Ready to Cook', slug: 'ready-to-cook', image: '' },
+      { _id: '4', name: 'Chicken Products', slug: 'chicken-products', image: '' }
+    ];
+    
+    res.status(200).json({
+      success: true,
+      categories
+    });
+  } catch (error) {
+    console.error('Categories error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching categories'
+    });
+  }
+});
+
 // ==================== AI COOKING ROUTES ====================
 const chatbotRoutes = require('./routes/chatbotRoutes');
 app.use('/api/chatbot', chatbotRoutes);
 
 // ====================== Returns ==================================
-const returnRoutes = require('./routes/returnRoutes') 
+const returnRoutes = require('./routes/returnRoutes');
 app.use('/api/returns', returnRoutes);
 
 // ==================== PRODUCT ROUTES (INCLUDES REVIEWS) ====================
@@ -83,15 +127,15 @@ const feedbackRoutes = require('./routes/FeedbackRoutes');
 app.use('/api/feedback', feedbackRoutes);
 
 // ===================== Delivery Routes ===============
-const deliveryEarningsRoutes = require('./routes/delivery/deliveryEarningsRoutes')
-const deliveryDashboardRoutes = require('./routes/delivery/deliveryDashboardRoutes')
-const deliveryOrdersRoutes = require('./routes/delivery/deliveryOrdersRoutes')
+const deliveryEarningsRoutes = require('./routes/delivery/deliveryEarningsRoutes');
+const deliveryDashboardRoutes = require('./routes/delivery/deliveryDashboardRoutes');
+const deliveryOrdersRoutes = require('./routes/delivery/deliveryOrdersRoutes');
 const deliveryAuthRoutes = require('./routes/delivery/deliveryAuthRoutes');
 
 app.use('/api/delivery/auth', deliveryAuthRoutes);
-app.use('/api/delivery/orders',deliveryOrdersRoutes)
-app.use('/api/delivery/dashboard',deliveryDashboardRoutes)
-app.use('/api/delivery/earning',deliveryEarningsRoutes)
+app.use('/api/delivery/orders', deliveryOrdersRoutes);
+app.use('/api/delivery/dashboard', deliveryDashboardRoutes);
+app.use('/api/delivery/earning', deliveryEarningsRoutes);
 
 // ==================== ADMIN ROUTES ====================
 const adminAuthRoutes = require('./routes/admin/adminAuthRoutes');
@@ -115,17 +159,7 @@ app.use('/api/admin/categories', adminCategoryRoutes);
 app.use('/api/admin/coupons', adminCouponRoutes);
 app.use('/api/admin/reviews', adminReviewRoutes);
 
-// -------------------- HEALTH --------------------
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Server is running',
-    time: new Date().toISOString(),
-    service: 'ChickenHub API 🐔',
-    version: '1.0.0'
-  });
-});
-
+// -------------------- AI COOKING HEALTH --------------------
 app.get('/api/ai-cooking/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -140,8 +174,9 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Welcome to ChickenHub API 🐔',
     endpoints: {
-      ai_cooking: '/api/ai-cooking',
+      ai_cooking: '/api/chatbot',
       products: '/api/products',
+      categories: '/api/categories', // Added this
       user_auth: '/api/user',
       cart: '/api/cart',
       admin: '/api/admin',
@@ -160,13 +195,12 @@ app.use((req, res) => {
     available_endpoints: [
       'GET /',
       'GET /api/health',
+      'GET /api/categories', // Added this
       'GET /api/products',
       'GET /api/products/:id',
       'GET /api/products/:id/reviews',
       'POST /api/products/:id/reviews',
-      'POST /api/ai-cooking/ask',
-      'GET /api/ai-cooking/tips',
-      'POST /api/ai-cooking/feedback',
+      'POST /api/chatbot/ask',
       'POST /api/feedback',
       'GET /api/feedback/user'
     ]
@@ -195,11 +229,12 @@ app.use((err, req, res, next) => {
 // -------------------- SERVER --------------------
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => { // Listen on all interfaces
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🔗 Base URL: http://0.0.0.0:${PORT}`);
   console.log(`🔗 Products API: http://localhost:${PORT}/api/products`);
-  console.log(`🔗 Reviews API: http://localhost:${PORT}/api/products/:id/reviews`);
-  console.log(`🔗 Feedback API: http://localhost:${PORT}/api/feedback`);
+  console.log(`🔗 Categories API: http://localhost:${PORT}/api/categories`);
+  console.log(`🔗 Cart API: http://localhost:${PORT}/api/cart`);
   console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
 });
 

@@ -25,9 +25,7 @@ const corsOptions = {
     const allowedOrigins = process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',')
       : [
-          'https://unique-florentine-f4cf47.netlify.app'
-          'http://localhost:3000',
-          'http://localhost:3001',
+          'https://unique-florentine-f4cf47.netlify.app',
           'http://localhost:5173',
           'http://localhost:5174',
         ];

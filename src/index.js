@@ -24,12 +24,11 @@ const corsOptions = {
     const allowedOrigins = process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',')
       : [
-          'http://localhost:3000',
           'http://localhost:3001',
           'http://localhost:5173',
           'http://localhost:5174',
           'https://chicken-hub.onrender.com',
-          'https://your-frontend-domain.com' // Add your frontend URL here
+          'https://unique-florentine-f4cf47.netlify.app' // Add your frontend URL here
         ];
 
     // Allow requests with no origin (like mobile apps or curl requests)

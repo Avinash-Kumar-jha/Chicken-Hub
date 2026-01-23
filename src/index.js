@@ -18,23 +18,38 @@ const app = express();
 app.use(helmet());
 
 // -------------------- CORS --------------------
+// -------------------- ENHANCED CORS CONFIGURATION --------------------
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
+      console.log('✅ No origin - allowing request');
+      return callback(null, true);
+    }
 
-    const allowedOrigins = process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(',')
-      : [
-          'https://remarkable-sawine-e76010.netlify.app',
-          'http://localhost:3001',
-          'http://localhost:5173',
-          'http://localhost:5174',
-        ];
+    const allowedOrigins = [
+      'https://remarkable-sawine-e76010.netlify.app',
+      'http://localhost:3001',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174'
+    ];
 
-    if (
-      allowedOrigins.includes(origin) ||
-      process.env.NODE_ENV === 'development'
-    ) {
+    // Add environment variable origins if provided
+    if (process.env.ALLOWED_ORIGINS) {
+      const envOrigins = process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim());
+      allowedOrigins.push(...envOrigins);
+    }
+
+    console.log('🔍 CORS Check:', {
+      requestOrigin: origin,
+      allowedOrigins,
+      isAllowed: allowedOrigins.includes(origin)
+    });
+
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+      console.log('✅ CORS allowed for:', origin);
       callback(null, true);
     } else {
       console.log('❌ CORS blocked origin:', origin);
@@ -43,12 +58,31 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ],
+  exposedHeaders: ['Authorization'],
   optionsSuccessStatus: 200,
+  maxAge: 86400 // 24 hours
 };
 
 app.use(cors(corsOptions));
 
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path}`, {
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent']?.substring(0, 50)
+  });
+  next();
+});
 // -------------------- BODY PARSERS --------------------
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
